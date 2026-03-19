@@ -44,21 +44,24 @@ export function EventStream({
         <span className="text-xs text-muted font-mono">{events.length} events</span>
       </div>
 
-      <div className="flex gap-2 mb-4">
+      <div className="mb-4 flex flex-nowrap gap-1 md:gap-2">
         <button
-          className="rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-accent/90 transition-colors"
+          type="button"
+          className="min-w-0 flex-1 shrink truncate rounded-lg bg-accent px-2 py-1 text-xs font-medium text-white transition-colors hover:bg-accent/90 md:px-3 md:py-1.5 md:text-sm"
           onClick={onFireEvent}
         >
           Fire Event
         </button>
         <button
-          className="rounded-lg bg-accent/10 px-3 py-1.5 text-sm font-medium text-accent hover:bg-accent/20 transition-colors"
+          type="button"
+          className="min-w-0 flex-1 shrink truncate rounded-lg bg-accent/10 px-2 py-1 text-xs font-medium text-accent transition-colors hover:bg-accent/20 md:px-3 md:py-1.5 md:text-sm"
           onClick={onSimulateSpike}
         >
           Simulate Spike
         </button>
         <button
-          className="rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-muted hover:bg-gray-50 transition-colors"
+          type="button"
+          className="min-w-0 flex-1 shrink truncate rounded-lg border border-border px-2 py-1 text-xs font-medium text-muted transition-colors hover:bg-gray-50 md:px-3 md:py-1.5 md:text-sm"
           onClick={onNewBillingPeriod}
         >
           New Period

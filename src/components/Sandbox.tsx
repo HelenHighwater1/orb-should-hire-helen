@@ -1,6 +1,8 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
 import { EventStream } from "@/components/EventStream";
 import { LiveInvoice } from "@/components/LiveInvoice";
@@ -46,6 +48,71 @@ function getMostActiveCustomer(events: UsageEvent[]): string | undefined {
   return mostActive;
 }
 
+function invoiceSignature(invoice: Invoice): string {
+  const parts = invoice.lineItemCharges.map(
+    (c) =>
+      `${c.lineItemId}:${c.charge}:${c.unitsConsumed}:${c.crossedTierAt ?? ""}`,
+  );
+  return `${parts.join("|")}|${invoice.total}|${invoice.subtotal}|${invoice.baseFee}`;
+}
+
+type MobileTab = "plan" | "events" | "invoice";
+
+function MobileTabBar({
+  mobileTab,
+  onTabChange,
+  eventsUnreadDot,
+  invoiceBriefPulse,
+}: {
+  mobileTab: MobileTab;
+  onTabChange: (tab: MobileTab) => void;
+  eventsUnreadDot: boolean;
+  invoiceBriefPulse: boolean;
+}) {
+  const tabBtn = (tab: MobileTab, label: ReactNode) => (
+    <button
+      type="button"
+      onClick={() => onTabChange(tab)}
+      className={`relative flex flex-1 items-center justify-center gap-1 px-1 py-3 text-xs font-semibold transition-colors sm:text-sm ${
+        mobileTab === tab
+          ? "bg-accent text-white"
+          : "text-muted hover:bg-accent/5"
+      }`}
+    >
+      {label}
+    </button>
+  );
+
+  return (
+    <nav
+      className="fixed left-0 right-0 top-0 z-[100] flex border-b border-border bg-white shadow-sm md:hidden"
+      aria-label="Panel navigation"
+    >
+      {tabBtn("plan", "Plan")}
+      {tabBtn(
+        "events",
+        <span className="relative inline-flex items-center">
+          Events
+          {eventsUnreadDot && (
+            <span
+              className="absolute -right-2.5 top-0.5 h-2 w-2 rounded-full bg-red-500 ring-2 ring-white"
+              aria-hidden
+            />
+          )}
+        </span>,
+      )}
+      {tabBtn(
+        "invoice",
+        <span
+          className={invoiceBriefPulse ? "invoice-tab-brief-pulse" : undefined}
+        >
+          Invoice
+        </span>,
+      )}
+    </nav>
+  );
+}
+
 export function Sandbox() {
   const SELECTED_CUSTOMER_EVENT_WEIGHT = 0.5;
   const [plan, setPlan] = useState<Plan>(() => clonePlan(DEFAULT_PLAN));
@@ -54,6 +121,17 @@ export function Sandbox() {
   const previousInvoicesRef = useRef<Record<string, Invoice | undefined>>({});
   const planRef = useRef<Plan>(plan);
   const selectedCustomerIdRef = useRef<string>(selectedCustomerId);
+
+  const [mobileTab, setMobileTab] = useState<MobileTab>("events");
+  const [eventsUnreadDot, setEventsUnreadDot] = useState(false);
+  const [invoiceBriefPulse, setInvoiceBriefPulse] = useState(false);
+  const prevEventsLengthRef = useRef(0);
+  const invoiceSigRef = useRef("");
+
+  const [portalReady, setPortalReady] = useState(false);
+  useEffect(() => {
+    setPortalReady(true);
+  }, []);
 
   useEffect(() => {
     planRef.current = plan;
@@ -104,16 +182,47 @@ export function Sandbox() {
       });
     }
 
+    /* eslint-disable react-hooks/refs -- previous invoice snapshot for tier-cross detection; updated in same memo pass */
     const previousForCustomer = previousInvoicesRef.current[selectedCustomerId];
     const nextInvoice = calculateInvoice(events, plan, {
       customerId: selectedCustomerId,
       previousInvoice: previousForCustomer,
     });
     previousInvoicesRef.current[selectedCustomerId] = nextInvoice;
+    /* eslint-enable react-hooks/refs */
     return nextInvoice;
   }, [events, plan, selectedCustomerId]);
 
   const currentModelType = getPlanModelType(plan);
+
+  /** New events while not on Events tab → notification dot */
+  useEffect(() => {
+    const len = events.length;
+    if (len > prevEventsLengthRef.current && mobileTab !== "events") {
+      setEventsUnreadDot(true);
+    }
+    prevEventsLengthRef.current = len;
+  }, [events.length, mobileTab]);
+
+  /** Invoice update while not on Invoice tab → brief pulse on Invoice tab */
+  useEffect(() => {
+    const sig = invoiceSignature(invoice);
+    const prev = invoiceSigRef.current;
+    if (prev !== "" && sig !== prev && mobileTab !== "invoice") {
+      setInvoiceBriefPulse(true);
+      const t = window.setTimeout(() => setInvoiceBriefPulse(false), 800);
+      invoiceSigRef.current = sig;
+      return () => window.clearTimeout(t);
+    }
+    invoiceSigRef.current = sig;
+  }, [invoice, mobileTab]);
+
+  function handleMobileTabChange(tab: MobileTab) {
+    setMobileTab(tab);
+    if (tab === "events") {
+      setEventsUnreadDot(false);
+    }
+  }
 
   function resetEventsForNewPlan(nextPlan: Plan) {
     const currentTypes = getEventTypes(plan);
@@ -171,40 +280,64 @@ export function Sandbox() {
     previousInvoicesRef.current = {};
   }
 
+  const panelVisibility = (tab: MobileTab) =>
+    mobileTab === tab ? "flex flex-1 min-h-0 flex-col" : "hidden";
+
   return (
-    <motion.div
-      className="contents"
-      variants={panelContainerVariants}
-      initial="hidden"
-      animate="visible"
-    >
-      <motion.div variants={panelItemVariants} className="min-h-0">
-        <PlanBuilder
-          plan={plan}
-          selectedModelType={currentModelType}
-          onModelPresetChange={handleModelPresetChange}
-          onPlanChange={handlePlanChange}
-        />
+    <>
+      {portalReady &&
+        createPortal(
+          <MobileTabBar
+            mobileTab={mobileTab}
+            onTabChange={handleMobileTabChange}
+            eventsUnreadDot={eventsUnreadDot}
+            invoiceBriefPulse={invoiceBriefPulse}
+          />,
+          document.body,
+        )}
+      <motion.div
+        className="contents"
+        variants={panelContainerVariants}
+        initial="hidden"
+        animate="visible"
+      >
+        <motion.div
+          variants={panelItemVariants}
+          className={`min-h-0 ${panelVisibility("plan")} md:flex md:flex-col`}
+        >
+          <PlanBuilder
+            plan={plan}
+            selectedModelType={currentModelType}
+            onModelPresetChange={handleModelPresetChange}
+            onPlanChange={handlePlanChange}
+          />
+        </motion.div>
+        <motion.div
+          variants={panelItemVariants}
+          className={`min-h-0 ${panelVisibility("events")} md:flex md:flex-col`}
+        >
+          <EventStream
+            events={events}
+            lineItems={plan.lineItems}
+            onFireEvent={handleFireEvent}
+            onSimulateSpike={handleSimulateSpike}
+            onNewBillingPeriod={handleNewBillingPeriod}
+          />
+        </motion.div>
+        <motion.div
+          variants={panelItemVariants}
+          className={`min-h-0 ${panelVisibility("invoice")} md:flex md:flex-col`}
+        >
+          <LiveInvoice
+            plan={plan}
+            invoice={invoice}
+            customerIds={customerIds}
+            selectedCustomerId={selectedCustomerId}
+            onCustomerChange={setSelectedCustomerId}
+            events={events}
+          />
+        </motion.div>
       </motion.div>
-      <motion.div variants={panelItemVariants} className="min-h-0">
-        <EventStream
-          events={events}
-          lineItems={plan.lineItems}
-          onFireEvent={handleFireEvent}
-          onSimulateSpike={handleSimulateSpike}
-          onNewBillingPeriod={handleNewBillingPeriod}
-        />
-      </motion.div>
-      <motion.div variants={panelItemVariants} className="min-h-0">
-        <LiveInvoice
-          plan={plan}
-          invoice={invoice}
-          customerIds={customerIds}
-          selectedCustomerId={selectedCustomerId}
-          onCustomerChange={setSelectedCustomerId}
-          events={events}
-        />
-      </motion.div>
-    </motion.div>
+    </>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { pickRandomBusinessIdea } from "@/data/aiBusinessIdeas";
 import type { LineItem, Plan, PricingModelType, Tier } from "@/types/billing";
 import { PRICING_MODEL_LABELS, PRICING_MODEL_TYPES } from "@/types/billing";
 
@@ -160,13 +161,33 @@ export function PlanBuilder({
 
       {activeTab === "ai" ? (
         <div className="space-y-3">
-          <FieldInput
-            label="What does your product do?"
-            type="text"
-            value={productDescription}
-            placeholder="e.g. We provide an image generation API for ecommerce teams."
-            onChange={setProductDescription}
-          />
+          <div>
+            <div className="flex items-center justify-between gap-2 mb-1">
+              <FieldLabel>What does your product do?</FieldLabel>
+              <button
+                type="button"
+                disabled={isGenerating}
+                onClick={() => {
+                  setProductDescription(pickRandomBusinessIdea());
+                  setAiError(null);
+                }}
+                className={`shrink-0 rounded-md border border-border bg-white px-2.5 py-1 text-xs font-medium transition-colors ${
+                  isGenerating
+                    ? "text-muted opacity-50 cursor-not-allowed"
+                    : "text-accent hover:bg-accent/5 hover:border-accent/30"
+                }`}
+              >
+                Random idea
+              </button>
+            </div>
+            <input
+              type="text"
+              value={productDescription}
+              placeholder="e.g. We provide an image generation API for ecommerce teams."
+              className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-colors"
+              onChange={(e) => setProductDescription(e.target.value)}
+            />
+          </div>
           <button
             type="button"
             onClick={handleGeneratePlan}
@@ -219,20 +240,22 @@ export function PlanBuilder({
           {(pricingModel.type === "tiered" ||
             pricingModel.type === "volume" ||
             pricingModel.type === "stairstep") && (
-            <div>
+            <div className="w-full min-w-0">
               <FieldLabel>Tiers</FieldLabel>
-              <div className="rounded-lg border border-border overflow-hidden">
-                <div className="grid grid-cols-2 gap-0 bg-gray-50 px-3 py-1.5 text-xs font-medium text-muted border-b border-border">
+              <div className="-mx-5 max-md:overflow-x-auto md:mx-0 md:max-w-none md:overflow-visible">
+                <div className="min-w-[min(100%,280px)] md:min-w-0">
+                  <div className="overflow-hidden rounded-lg border border-border">
+                <div className="grid grid-cols-2 gap-0 border-b border-border bg-gray-50 px-3 py-1.5 text-xs font-medium text-muted">
                   <span>Up to</span>
                   <span>{pricingModel.type === "stairstep" ? "Flat fee ($)" : "Rate/unit ($)"}</span>
                 </div>
                 <div className="divide-y divide-border">
                   {pricingModel.tiers.map((tier, index) => (
-                    <div key={index} className="grid grid-cols-2 gap-2 px-3 py-2">
+                    <div key={index} className="grid min-w-0 grid-cols-2 gap-2 px-3 py-2">
                       <input
                         type="text"
                         value={tier.upTo}
-                        className="rounded-md border border-border px-2 py-1 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-accent/20"
+                        className="min-w-0 w-full rounded-md border border-border px-2 py-1 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-accent/20"
                         onChange={(event) => {
                           const raw = event.target.value.trim();
                           const upTo: number | "infinity" = raw === "infinity" ? "infinity" : toNumber(raw);
@@ -247,7 +270,7 @@ export function PlanBuilder({
                           type="number"
                           step="0.01"
                           value={tier.flatFee ?? 0}
-                          className="rounded-md border border-border px-2 py-1 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-accent/20"
+                          className="min-w-0 w-full rounded-md border border-border px-2 py-1 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-accent/20"
                           onChange={(event) =>
                             updatePricingModel({
                               ...pricingModel,
@@ -262,7 +285,7 @@ export function PlanBuilder({
                           type="number"
                           step="0.001"
                           value={tier.pricePerUnit}
-                          className="rounded-md border border-border px-2 py-1 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-accent/20"
+                          className="min-w-0 w-full rounded-md border border-border px-2 py-1 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-accent/20"
                           onChange={(event) =>
                             updatePricingModel({
                               ...pricingModel,
@@ -275,6 +298,8 @@ export function PlanBuilder({
                       )}
                     </div>
                   ))}
+                </div>
+                  </div>
                 </div>
               </div>
             </div>

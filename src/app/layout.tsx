@@ -20,7 +20,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Orb Pricing Sandbox",
     description:
-      "An interactive demo of usage-based billing. Watch a live invoice build as events stream in, switch between 8 pricing models, and let Claude roast your pricing strategy.",
+      "An interactive demo of usage-based billing. Watch a live invoice build as events stream in, switch between 8 pricing models, and get AI pricing insights from Claude.",
     siteName: "Orb Pricing Sandbox",
     type: "website",
   },

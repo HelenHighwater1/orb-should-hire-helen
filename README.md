@@ -1,4 +1,4 @@
-# Orb Pricing Sandbox
+# Pricing Sandbox Demo for Orb
 
 I built this as a supplement to my application for the Software Engineer, Core Product
 (Early Career) role at Orb. A resume tells you what I've done. This shows how I think.
@@ -23,28 +23,3 @@ felt appropriate given Orb explicitly names Claude Code in the job description.
 
 Hope you enjoy this, and feel free to check out my portfolio site [HeyImHelen.com](heyimhelen.com)!
 — Helen
-
-_____
-#Details
-
-
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
-
-## Getting Started
-
-First, run the development server:
-
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
-
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-

@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import type { LineItem, Plan, PricingModelType, Tier } from "@/types/billing";
 import { PRICING_MODEL_LABELS, PRICING_MODEL_TYPES } from "@/types/billing";
 
@@ -66,6 +69,13 @@ export function PlanBuilder({
   onModelPresetChange,
   onPlanChange,
 }: PlanBuilderProps) {
+  const [activeTab, setActiveTab] = useState<"manual" | "ai">("manual");
+  const [productDescription, setProductDescription] = useState("");
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [aiReasoning, setAiReasoning] = useState<string | null>(null);
+  const [isReasoningOpen, setIsReasoningOpen] = useState(false);
+
   const lineItem = plan.lineItems[0];
   const pricingModel = lineItem.pricingModel;
 
@@ -77,6 +87,48 @@ export function PlanBuilder({
     onPlanChange(updateLineItem(plan, { ...lineItem, pricingModel: nextPricingModel }));
   }
 
+  async function handleGeneratePlan() {
+    const description = productDescription.trim();
+    if (!description) {
+      setAiError("Please describe your product first.");
+      return;
+    }
+
+    setIsGenerating(true);
+    setAiError(null);
+
+    try {
+      const response = await fetch("/api/generate-plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ productDescription: description }),
+      });
+
+      const payload = (await response.json()) as {
+        plan?: Plan;
+        reasoning?: string;
+        error?: string;
+      };
+
+      if (!response.ok || !payload.plan) {
+        setAiError(
+          payload.error ??
+            "Couldn't generate a plan for that — try describing your product differently.",
+        );
+        return;
+      }
+
+      onPlanChange(payload.plan);
+      setAiReasoning(payload.reasoning ?? "This plan was generated from your product description.");
+      setIsReasoningOpen(false);
+      setActiveTab("manual");
+    } catch {
+      setAiError("Couldn't generate a plan for that — try describing your product differently.");
+    } finally {
+      setIsGenerating(false);
+    }
+  }
+
   return (
     <section className="flex flex-col rounded-xl border border-border bg-white shadow-sm p-5 h-full overflow-y-auto">
       <h2 className="text-sm font-semibold uppercase tracking-wide text-muted mb-4">
@@ -84,225 +136,286 @@ export function PlanBuilder({
       </h2>
 
       <div className="flex gap-1 mb-5 rounded-lg bg-gray-100 p-1">
-        <button className="flex-1 rounded-md px-3 py-1.5 text-sm font-medium bg-white shadow-sm text-accent">
+        <button
+          onClick={() => setActiveTab("manual")}
+          className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+            activeTab === "manual"
+              ? "bg-white shadow-sm text-accent"
+              : "text-muted hover:text-foreground"
+          }`}
+        >
           Manual Setup
         </button>
-        <button className="flex-1 rounded-md px-3 py-1.5 text-sm font-medium text-muted cursor-not-allowed">
+        <button
+          onClick={() => setActiveTab("ai")}
+          className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+            activeTab === "ai"
+              ? "bg-white shadow-sm text-accent"
+              : "text-muted hover:text-foreground"
+          }`}
+        >
           AI Setup
         </button>
       </div>
 
-      <div>
-        <FieldLabel>Pricing Model</FieldLabel>
-        <select
-          className="mb-4 w-full rounded-lg border border-border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-colors"
-          value={selectedModelType}
-          onChange={(event) => onModelPresetChange(event.target.value as PricingModelType)}
-        >
-          {PRICING_MODEL_TYPES.map((type) => (
-            <option key={type} value={type}>
-              {PRICING_MODEL_LABELS[type]}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div className="flex-1 space-y-3">
-        <FieldInput
-          label="Company Name"
-          type="text"
-          value={plan.companyName}
-          onChange={(v) => updatePlanBase({ companyName: v })}
-        />
-
-        <FieldInput
-          label="Base Fee ($)"
-          step="0.01"
-          value={plan.baseFee}
-          onChange={(v) => updatePlanBase({ baseFee: toNumber(v) })}
-        />
-
-        {(pricingModel.type === "tiered" ||
-          pricingModel.type === "volume" ||
-          pricingModel.type === "stairstep") && (
+      {activeTab === "ai" ? (
+        <div className="space-y-3">
+          <FieldInput
+            label="What does your product do?"
+            type="text"
+            value={productDescription}
+            placeholder="e.g. We provide an image generation API for ecommerce teams."
+            onChange={setProductDescription}
+          />
+          <button
+            type="button"
+            onClick={handleGeneratePlan}
+            disabled={isGenerating}
+            className={`w-full rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+              isGenerating
+                ? "bg-gray-200 text-muted cursor-not-allowed"
+                : "bg-accent text-white hover:bg-accent/90"
+            }`}
+          >
+            {isGenerating ? "Generating..." : "Generate Plan"}
+          </button>
+          {aiError && (
+            <div className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning">
+              {aiError}
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-3">
           <div>
-            <FieldLabel>Tiers</FieldLabel>
-            <div className="rounded-lg border border-border overflow-hidden">
-              <div className="grid grid-cols-2 gap-0 bg-gray-50 px-3 py-1.5 text-xs font-medium text-muted border-b border-border">
-                <span>Up to</span>
-                <span>{pricingModel.type === "stairstep" ? "Flat fee ($)" : "Rate/unit ($)"}</span>
-              </div>
-              <div className="divide-y divide-border">
-                {pricingModel.tiers.map((tier, index) => (
-                  <div key={index} className="grid grid-cols-2 gap-2 px-3 py-2">
-                    <input
-                      type="text"
-                      value={tier.upTo}
-                      className="rounded-md border border-border px-2 py-1 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-accent/20"
-                      onChange={(event) => {
-                        const raw = event.target.value.trim();
-                        const upTo: number | "infinity" = raw === "infinity" ? "infinity" : toNumber(raw);
-                        updatePricingModel({
-                          ...pricingModel,
-                          tiers: updateTier(pricingModel.tiers, index, { upTo }),
-                        });
-                      }}
-                    />
-                    {pricingModel.type === "stairstep" ? (
+            <FieldLabel>Pricing Model</FieldLabel>
+            <select
+              className="mb-4 w-full rounded-lg border border-border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-colors"
+              value={selectedModelType}
+              onChange={(event) => onModelPresetChange(event.target.value as PricingModelType)}
+            >
+              {PRICING_MODEL_TYPES.map((type) => (
+                <option key={type} value={type}>
+                  {PRICING_MODEL_LABELS[type]}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <FieldInput
+            label="Company Name"
+            type="text"
+            value={plan.companyName}
+            onChange={(v) => updatePlanBase({ companyName: v })}
+          />
+
+          <FieldInput
+            label="Base Fee ($)"
+            step="0.01"
+            value={plan.baseFee}
+            onChange={(v) => updatePlanBase({ baseFee: toNumber(v) })}
+          />
+
+          {(pricingModel.type === "tiered" ||
+            pricingModel.type === "volume" ||
+            pricingModel.type === "stairstep") && (
+            <div>
+              <FieldLabel>Tiers</FieldLabel>
+              <div className="rounded-lg border border-border overflow-hidden">
+                <div className="grid grid-cols-2 gap-0 bg-gray-50 px-3 py-1.5 text-xs font-medium text-muted border-b border-border">
+                  <span>Up to</span>
+                  <span>{pricingModel.type === "stairstep" ? "Flat fee ($)" : "Rate/unit ($)"}</span>
+                </div>
+                <div className="divide-y divide-border">
+                  {pricingModel.tiers.map((tier, index) => (
+                    <div key={index} className="grid grid-cols-2 gap-2 px-3 py-2">
                       <input
-                        type="number"
-                        step="0.01"
-                        value={tier.flatFee ?? 0}
+                        type="text"
+                        value={tier.upTo}
                         className="rounded-md border border-border px-2 py-1 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-accent/20"
-                        onChange={(event) =>
+                        onChange={(event) => {
+                          const raw = event.target.value.trim();
+                          const upTo: number | "infinity" = raw === "infinity" ? "infinity" : toNumber(raw);
                           updatePricingModel({
                             ...pricingModel,
-                            tiers: updateTier(pricingModel.tiers, index, {
-                              flatFee: toNumber(event.target.value),
-                            }),
-                          })
-                        }
+                            tiers: updateTier(pricingModel.tiers, index, { upTo }),
+                          });
+                        }}
                       />
-                    ) : (
-                      <input
-                        type="number"
-                        step="0.001"
-                        value={tier.pricePerUnit}
-                        className="rounded-md border border-border px-2 py-1 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-accent/20"
-                        onChange={(event) =>
-                          updatePricingModel({
-                            ...pricingModel,
-                            tiers: updateTier(pricingModel.tiers, index, {
-                              pricePerUnit: toNumber(event.target.value),
-                            }),
-                          })
-                        }
-                      />
-                    )}
-                  </div>
-                ))}
+                      {pricingModel.type === "stairstep" ? (
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={tier.flatFee ?? 0}
+                          className="rounded-md border border-border px-2 py-1 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-accent/20"
+                          onChange={(event) =>
+                            updatePricingModel({
+                              ...pricingModel,
+                              tiers: updateTier(pricingModel.tiers, index, {
+                                flatFee: toNumber(event.target.value),
+                              }),
+                            })
+                          }
+                        />
+                      ) : (
+                        <input
+                          type="number"
+                          step="0.001"
+                          value={tier.pricePerUnit}
+                          className="rounded-md border border-border px-2 py-1 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-accent/20"
+                          onChange={(event) =>
+                            updatePricingModel({
+                              ...pricingModel,
+                              tiers: updateTier(pricingModel.tiers, index, {
+                                pricePerUnit: toNumber(event.target.value),
+                              }),
+                            })
+                          }
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {pricingModel.type === "flat_per_unit" && (
-          <FieldInput
-            label="Price Per Unit ($)"
-            step="0.001"
-            value={pricingModel.pricePerUnit}
-            onChange={(v) =>
-              updatePricingModel({ ...pricingModel, pricePerUnit: toNumber(v) })
-            }
-          />
-        )}
-
-        {pricingModel.type === "per_seat" && (
-          <FieldInput
-            label="Price Per Seat ($)"
-            step="0.01"
-            value={pricingModel.pricePerSeat}
-            onChange={(v) =>
-              updatePricingModel({ ...pricingModel, pricePerSeat: toNumber(v) })
-            }
-          />
-        )}
-
-        {pricingModel.type === "prepaid_credits" && (
-          <div className="space-y-3">
+          {pricingModel.type === "flat_per_unit" && (
             <FieldInput
-              label="Credit Package Price ($)"
-              step="0.01"
-              value={pricingModel.creditPrice}
-              onChange={(v) =>
-                updatePricingModel({ ...pricingModel, creditPrice: toNumber(v) })
-              }
-            />
-            <FieldInput
-              label="Credits Per Package"
-              step="1"
-              value={pricingModel.creditsPerUnit}
-              onChange={(v) =>
-                updatePricingModel({ ...pricingModel, creditsPerUnit: toNumber(v) })
-              }
-            />
-            <FieldInput
-              label="Overage Rate Per Unit ($)"
-              step="0.01"
-              value={pricingModel.overagePricePerUnit ?? ""}
-              placeholder="Optional"
-              onChange={(v) =>
-                updatePricingModel({
-                  ...pricingModel,
-                  overagePricePerUnit: v === "" ? undefined : toNumber(v),
-                })
-              }
-            />
-          </div>
-        )}
-
-        {pricingModel.type === "package" && (
-          <div className="space-y-3">
-            <FieldInput
-              label="Package Size (units)"
-              step="1"
-              value={pricingModel.packageSize}
-              onChange={(v) =>
-                updatePricingModel({ ...pricingModel, packageSize: toNumber(v) })
-              }
-            />
-            <FieldInput
-              label="Package Price ($)"
-              step="0.01"
-              value={pricingModel.packagePrice}
-              onChange={(v) =>
-                updatePricingModel({ ...pricingModel, packagePrice: toNumber(v) })
-              }
-            />
-            <FieldInput
-              label="Overage Rate Per Unit ($)"
-              step="0.01"
-              value={pricingModel.overage ?? ""}
-              placeholder="Optional"
-              onChange={(v) =>
-                updatePricingModel({
-                  ...pricingModel,
-                  overage: v === "" ? undefined : toNumber(v),
-                })
-              }
-            />
-          </div>
-        )}
-
-        {pricingModel.type === "flat_overage" && (
-          <div className="space-y-3">
-            <FieldInput
-              label="Included Units"
-              step="1"
-              value={pricingModel.includedUnits}
-              onChange={(v) =>
-                updatePricingModel({ ...pricingModel, includedUnits: toNumber(v) })
-              }
-            />
-            <FieldInput
-              label="Monthly Base Fee ($)"
-              step="0.01"
-              value={pricingModel.baseFee}
-              onChange={(v) =>
-                updatePricingModel({ ...pricingModel, baseFee: toNumber(v) })
-              }
-            />
-            <FieldInput
-              label="Overage Price Per Unit ($)"
+              label="Price Per Unit ($)"
               step="0.001"
-              value={pricingModel.overagePrice}
+              value={pricingModel.pricePerUnit}
               onChange={(v) =>
-                updatePricingModel({ ...pricingModel, overagePrice: toNumber(v) })
+                updatePricingModel({ ...pricingModel, pricePerUnit: toNumber(v) })
               }
             />
-          </div>
-        )}
-      </div>
+          )}
+
+          {pricingModel.type === "per_seat" && (
+            <FieldInput
+              label="Price Per Seat ($)"
+              step="0.01"
+              value={pricingModel.pricePerSeat}
+              onChange={(v) =>
+                updatePricingModel({ ...pricingModel, pricePerSeat: toNumber(v) })
+              }
+            />
+          )}
+
+          {pricingModel.type === "prepaid_credits" && (
+            <div className="space-y-3">
+              <FieldInput
+                label="Credit Package Price ($)"
+                step="0.01"
+                value={pricingModel.creditPrice}
+                onChange={(v) =>
+                  updatePricingModel({ ...pricingModel, creditPrice: toNumber(v) })
+                }
+              />
+              <FieldInput
+                label="Credits Per Package"
+                step="1"
+                value={pricingModel.creditsPerUnit}
+                onChange={(v) =>
+                  updatePricingModel({ ...pricingModel, creditsPerUnit: toNumber(v) })
+                }
+              />
+              <FieldInput
+                label="Overage Rate Per Unit ($)"
+                step="0.01"
+                value={pricingModel.overagePricePerUnit ?? ""}
+                placeholder="Optional"
+                onChange={(v) =>
+                  updatePricingModel({
+                    ...pricingModel,
+                    overagePricePerUnit: v === "" ? undefined : toNumber(v),
+                  })
+                }
+              />
+            </div>
+          )}
+
+          {pricingModel.type === "package" && (
+            <div className="space-y-3">
+              <FieldInput
+                label="Package Size (units)"
+                step="1"
+                value={pricingModel.packageSize}
+                onChange={(v) =>
+                  updatePricingModel({ ...pricingModel, packageSize: toNumber(v) })
+                }
+              />
+              <FieldInput
+                label="Package Price ($)"
+                step="0.01"
+                value={pricingModel.packagePrice}
+                onChange={(v) =>
+                  updatePricingModel({ ...pricingModel, packagePrice: toNumber(v) })
+                }
+              />
+              <FieldInput
+                label="Overage Rate Per Unit ($)"
+                step="0.01"
+                value={pricingModel.overage ?? ""}
+                placeholder="Optional"
+                onChange={(v) =>
+                  updatePricingModel({
+                    ...pricingModel,
+                    overage: v === "" ? undefined : toNumber(v),
+                  })
+                }
+              />
+            </div>
+          )}
+
+          {pricingModel.type === "flat_overage" && (
+            <div className="space-y-3">
+              <FieldInput
+                label="Included Units"
+                step="1"
+                value={pricingModel.includedUnits}
+                onChange={(v) =>
+                  updatePricingModel({ ...pricingModel, includedUnits: toNumber(v) })
+                }
+              />
+              <FieldInput
+                label="Monthly Base Fee ($)"
+                step="0.01"
+                value={pricingModel.baseFee}
+                onChange={(v) =>
+                  updatePricingModel({ ...pricingModel, baseFee: toNumber(v) })
+                }
+              />
+              <FieldInput
+                label="Overage Price Per Unit ($)"
+                step="0.001"
+                value={pricingModel.overagePrice}
+                onChange={(v) =>
+                  updatePricingModel({ ...pricingModel, overagePrice: toNumber(v) })
+                }
+              />
+            </div>
+          )}
+        </div>
+      )}
+
+      {aiReasoning && (
+        <div className="mt-4 rounded-lg border border-border bg-gray-50">
+          <button
+            type="button"
+            onClick={() => setIsReasoningOpen((prev) => !prev)}
+            className="w-full flex items-center justify-between px-3 py-2 text-sm font-medium text-left"
+          >
+            <span>Why this plan?</span>
+            <span className="text-muted">{isReasoningOpen ? "−" : "+"}</span>
+          </button>
+          {isReasoningOpen && (
+            <div className="px-3 pb-3 text-sm text-muted leading-relaxed">
+              {aiReasoning}
+            </div>
+          )}
+        </div>
+      )}
     </section>
   );
 }

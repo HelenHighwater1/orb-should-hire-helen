@@ -266,52 +266,64 @@ export function calculateInvoice(
         };
         break;
       case "prepaid_credits": {
-        const includedUnits = lineItem.pricingModel.creditsPerUnit;
+        const { creditPrice, creditsPerUnit: includedUnits, overagePricePerUnit } =
+          lineItem.pricingModel;
         const creditsUsed = Math.min(unitsConsumed, includedUnits);
         const overageUnits = Math.max(0, unitsConsumed - includedUnits);
-        const overageRate = lineItem.pricingModel.overagePricePerUnit;
         const overageCharge =
-          overageUnits > 0 && typeof overageRate === "number"
-            ? roundCurrency(overageUnits * overageRate)
+          overageUnits > 0 && typeof overagePricePerUnit === "number"
+            ? roundCurrency(overageUnits * overagePricePerUnit)
             : 0;
 
-        result = {
-          charge: overageCharge,
-          tierBreakdown: [
-            {
-              tierLabel: `Credits used`,
+        /** Customer prepays the package for the period; overage is incremental */
+        const packageCharge = unitsConsumed > 0 ? creditPrice : 0;
+        const totalCharge = roundCurrency(packageCharge + overageCharge);
+
+        const tierBreakdown: TierBreakdown[] = [];
+
+        if (unitsConsumed > 0) {
+          tierBreakdown.push({
+            tierLabel: "Prepaid credits package",
+            units: 1,
+            pricePerUnit: creditPrice,
+            subtotal: roundCurrency(creditPrice),
+            rowFormat: "package",
+          });
+
+          if (creditsUsed > 0) {
+            tierBreakdown.push({
+              tierLabel: "Included usage (from package)",
               units: creditsUsed,
               pricePerUnit: 0,
               subtotal: 0,
-            },
-            {
-              tierLabel:
-                overageUnits > 0 && typeof overageRate !== "number"
-                  ? "Credits exhausted (no overage offered)"
-                  : "Overage",
-              units: overageUnits,
-              pricePerUnit: overageRate ?? 0,
-              subtotal: overageCharge,
-            },
-          ],
-          extraCharges: [
-            {
-              lineItemId: `${lineItem.id}-credits`,
-              displayName: `${lineItem.displayName}: Credits used`,
-              unit: lineItem.unit,
-              unitsConsumed: creditsUsed,
-              pricingModel: lineItem.pricingModel,
-              charge: 0,
-              tierBreakdown: [
-                {
-                  tierLabel: `Included via credits (${includedUnits} units/month)`,
-                  units: creditsUsed,
-                  pricePerUnit: 0,
-                  subtotal: 0,
-                },
-              ],
-            },
-          ],
+              rowFormat: "included_usage",
+            });
+          }
+
+          if (overageUnits > 0) {
+            if (typeof overagePricePerUnit === "number") {
+              tierBreakdown.push({
+                tierLabel: "Overage",
+                units: overageUnits,
+                pricePerUnit: overagePricePerUnit,
+                subtotal: overageCharge,
+                rowFormat: "multiplier",
+              });
+            } else {
+              tierBreakdown.push({
+                tierLabel: "Beyond included credits — overage not offered",
+                units: overageUnits,
+                pricePerUnit: 0,
+                subtotal: 0,
+                rowFormat: "plain",
+              });
+            }
+          }
+        }
+
+        result = {
+          charge: totalCharge,
+          tierBreakdown,
         };
         break;
       }

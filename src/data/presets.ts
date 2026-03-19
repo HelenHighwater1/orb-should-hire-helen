@@ -15,6 +15,13 @@ export const flatPerUnitPlan: Plan = {
       unit: "call",
       pricingModel: { type: "flat_per_unit", pricePerUnit: 0.002 },
     },
+    {
+      id: "li-webhook",
+      eventType: "webhook_delivery",
+      displayName: "Webhook Deliveries",
+      unit: "delivery",
+      pricingModel: { type: "flat_per_unit", pricePerUnit: 0.005 },
+    },
   ],
 };
 
@@ -38,6 +45,20 @@ export const tieredPlan: Plan = {
           { upTo: 500, pricePerUnit: 0.3 },
           { upTo: 2000, pricePerUnit: 0.15 },
           { upTo: "infinity", pricePerUnit: 0.08 },
+        ],
+      },
+    },
+    {
+      id: "li-data-export",
+      eventType: "data_export",
+      displayName: "Data Exports",
+      unit: "export",
+      pricingModel: {
+        type: "tiered",
+        tiers: [
+          { upTo: 50, pricePerUnit: 1.0 },
+          { upTo: 200, pricePerUnit: 0.6 },
+          { upTo: "infinity", pricePerUnit: 0.3 },
         ],
       },
     },
@@ -66,6 +87,20 @@ export const volumePlan: Plan = {
         ],
       },
     },
+    {
+      id: "li-write-op",
+      eventType: "write_operation",
+      displayName: "Write Operations",
+      unit: "write",
+      pricingModel: {
+        type: "volume",
+        tiers: [
+          { upTo: 5000, pricePerUnit: 0.02 },
+          { upTo: 50000, pricePerUnit: 0.008 },
+          { upTo: "infinity", pricePerUnit: 0.003 },
+        ],
+      },
+    },
   ],
 };
 
@@ -84,6 +119,13 @@ export const perSeatPlan: Plan = {
       unit: "seat",
       pricingModel: { type: "per_seat", pricePerSeat: 12 },
     },
+    {
+      id: "li-guest-user",
+      eventType: "guest_user",
+      displayName: "Guest Users",
+      unit: "seat",
+      pricingModel: { type: "per_seat", pricePerSeat: 5 },
+    },
   ],
 };
 
@@ -93,7 +135,7 @@ export const flatOveragePlan: Plan = {
   companyName: "MailRelay",
   currency: "USD",
   billingPeriod: "monthly",
-  baseFee: 0, // baseFee lives inside the PricingModel for flat_overage
+  baseFee: 0,
   lineItems: [
     {
       id: "li-email-sent",
@@ -105,6 +147,18 @@ export const flatOveragePlan: Plan = {
         includedUnits: 10000,
         baseFee: 49,
         overagePrice: 0.003,
+      },
+    },
+    {
+      id: "li-contact-sync",
+      eventType: "contact_synced",
+      displayName: "Contact Syncs",
+      unit: "sync",
+      pricingModel: {
+        type: "flat_overage",
+        includedUnits: 500,
+        baseFee: 0,
+        overagePrice: 0.05,
       },
     },
   ],
@@ -128,6 +182,18 @@ export const packagePlan: Plan = {
         packageSize: 100,
         packagePrice: 25,
         overage: 0.35,
+      },
+    },
+    {
+      id: "li-asset-stored",
+      eventType: "asset_stored",
+      displayName: "Assets Stored",
+      unit: "asset",
+      pricingModel: {
+        type: "package",
+        packageSize: 50,
+        packagePrice: 10,
+        overage: 0.25,
       },
     },
   ],
@@ -156,6 +222,20 @@ export const stairstepPlan: Plan = {
         ],
       },
     },
+    {
+      id: "li-file-upload",
+      eventType: "file_upload",
+      displayName: "File Uploads",
+      unit: "upload",
+      pricingModel: {
+        type: "stairstep",
+        tiers: [
+          { upTo: 50, pricePerUnit: 0, flatFee: 9 },
+          { upTo: 200, pricePerUnit: 0, flatFee: 29 },
+          { upTo: "infinity", pricePerUnit: 0, flatFee: 59 },
+        ],
+      },
+    },
   ],
 };
 
@@ -176,9 +256,19 @@ export const prepaidCreditsPlan: Plan = {
         type: "prepaid_credits",
         creditPrice: 50,
         creditsPerUnit: 500,
-        // Overage rate ($0.15) is deliberately higher than the implied credit
-        // rate ($50 / 500 = $0.10) to incentivize buying credits upfront.
         overagePricePerUnit: 0.15,
+      },
+    },
+    {
+      id: "li-image-upscale",
+      eventType: "image_upscale",
+      displayName: "Image Upscales",
+      unit: "upscale",
+      pricingModel: {
+        type: "prepaid_credits",
+        creditPrice: 20,
+        creditsPerUnit: 100,
+        overagePricePerUnit: 0.3,
       },
     },
   ],

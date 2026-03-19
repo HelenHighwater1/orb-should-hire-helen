@@ -19,6 +19,10 @@ function getPlanModelType(plan: Plan): PricingModelType {
   return (plan.lineItems[0]?.pricingModel.type ?? "tiered") as PricingModelType;
 }
 
+function getEventTypes(plan: Plan): Set<string> {
+  return new Set(plan.lineItems.map((item) => item.eventType));
+}
+
 function getMostActiveCustomer(events: UsageEvent[]): string | undefined {
   if (events.length === 0) {
     return undefined;
@@ -111,16 +115,34 @@ export function Sandbox() {
 
   const currentModelType = getPlanModelType(plan);
 
+  function resetEventsForNewPlan(nextPlan: Plan) {
+    const currentTypes = getEventTypes(plan);
+    const nextTypes = getEventTypes(nextPlan);
+    const typesChanged =
+      currentTypes.size !== nextTypes.size ||
+      [...currentTypes].some((t) => !nextTypes.has(t));
+
+    if (typesChanged) {
+      previousInvoicesRef.current = {};
+      const seed = generateEvent(nextPlan);
+      setEvents([seed]);
+      setSelectedCustomerId(seed.customerId);
+    }
+  }
+
   function handleModelPresetChange(modelType: PricingModelType) {
     const nextPreset = ALL_PRESETS.find(
       (preset) => preset.lineItems[0]?.pricingModel.type === modelType,
     );
     if (nextPreset) {
-      setPlan(clonePlan(nextPreset));
+      const cloned = clonePlan(nextPreset);
+      resetEventsForNewPlan(cloned);
+      setPlan(cloned);
     }
   }
 
   function handlePlanChange(nextPlan: Plan) {
+    resetEventsForNewPlan(nextPlan);
     setPlan(nextPlan);
   }
 

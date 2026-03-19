@@ -97,11 +97,21 @@ export type LineItemCharge = {
   crossedTierAt?: number;
 };
 
+/**
+ * `rowFormat` controls invoice UI for rows that aren't a simple units × rate:
+ * - multiplier (default): units × pricePerUnit = subtotal
+ * - package: prepaid bundle — show label + subtotal only (no fake quantity × rate)
+ * - included_usage: units drawn from prepaid balance — no $0 rate column
+ * - plain: notice-style row (e.g. unbilled overage when no overage rate)
+ */
+export type TierBreakdownRowFormat = "multiplier" | "package" | "included_usage" | "plain";
+
 export type TierBreakdown = {
   tierLabel: string;
   units: number;
   pricePerUnit: number;
   subtotal: number;
+  rowFormat?: TierBreakdownRowFormat;
 };
 
 // ─── Helpers ────────────────────────────────────────────────────────────────

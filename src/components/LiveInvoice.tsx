@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { toast } from "sonner";
 import { AnimatedNumber } from "@/components/AnimatedNumber";
 import { tierBadgeVariants, tierCrossFlash } from "@/lib/animation";
-import type { Invoice, LineItemCharge, Plan, UsageEvent } from "@/types/billing";
+import type { Invoice, LineItemCharge, Plan, TierBreakdown, UsageEvent } from "@/types/billing";
+
+const TIER_BADGE_DISMISS_MS = 3000;
 
 type LiveInvoiceProps = {
   plan: Plan;
@@ -36,6 +38,47 @@ function shouldShowBreakdownRow(row: { units: number; subtotal: number }): boole
   return row.units > 0 || row.subtotal > 0;
 }
 
+function BreakdownRow({ row }: { row: TierBreakdown }) {
+  const fmt = row.rowFormat ?? "multiplier";
+
+  if (fmt === "package") {
+    return (
+      <div className="flex items-center gap-2 text-xs text-muted">
+        <span className="shrink-0 font-medium text-foreground">{row.tierLabel}</span>
+        <span className="ml-auto font-mono text-foreground">{formatCurrency(row.subtotal)}</span>
+      </div>
+    );
+  }
+
+  if (fmt === "included_usage") {
+    return (
+      <div className="flex items-center gap-2 text-xs text-muted">
+        <span className="shrink-0">{row.tierLabel}</span>
+        <span className="ml-auto">{row.units.toLocaleString()} units covered</span>
+      </div>
+    );
+  }
+
+  if (fmt === "plain") {
+    return (
+      <div className="flex items-center gap-2 text-xs text-warning">
+        <span className="shrink-0">{row.tierLabel}</span>
+        <span className="ml-auto font-mono">{row.units.toLocaleString()} units</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-2 text-xs text-muted">
+      <span className="shrink-0">{row.tierLabel}</span>
+      <span className="font-mono">
+        {row.units.toLocaleString()} × {formatCurrency(row.pricePerUnit)}
+      </span>
+      <span className="ml-auto font-mono">{formatCurrency(row.subtotal)}</span>
+    </div>
+  );
+}
+
 function isCreditsExhausted(charge: LineItemCharge): boolean {
   if (charge.pricingModel.type !== "prepaid_credits") return false;
   const included = charge.pricingModel.creditsPerUnit;
@@ -57,7 +100,23 @@ export function LiveInvoice({
 }: LiveInvoiceProps) {
   const eventTypesSeen = new Set(events.map((event) => event.eventType));
   const roastEnabled = events.length >= 15 && eventTypesSeen.size >= 2;
+
+  const [roastText, setRoastText] = useState<string | null>(null);
+  const [roastLoading, setRoastLoading] = useState(false);
+  const [roastError, setRoastError] = useState<string | null>(null);
+
   const firedCrossingsRef = useRef<Set<string>>(new Set());
+  const [activeBadges, setActiveBadges] = useState<Set<string>>(new Set());
+  const badgeTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+
+  const dismissBadge = useCallback((key: string) => {
+    setActiveBadges((prev) => {
+      const next = new Set(prev);
+      next.delete(key);
+      return next;
+    });
+    badgeTimersRef.current.delete(key);
+  }, []);
 
   useEffect(() => {
     for (const charge of invoice.lineItemCharges) {
@@ -69,16 +128,63 @@ export function LiveInvoice({
             `${charge.displayName} crossed tier at ${charge.crossedTierAt.toLocaleString()} units!`,
           );
         }
+
+        if (!activeBadges.has(key) && !badgeTimersRef.current.has(key)) {
+          setActiveBadges((prev) => new Set(prev).add(key));
+          badgeTimersRef.current.set(
+            key,
+            setTimeout(() => dismissBadge(key), TIER_BADGE_DISMISS_MS),
+          );
+        }
       }
     }
-  }, [invoice]);
+  }, [invoice, activeBadges, dismissBadge]);
 
-  const visibleCharges = invoice.lineItemCharges.filter((charge) => {
-    if (charge.lineItemId.endsWith("-credits") && charge.unitsConsumed === 0) {
-      return false;
+  useEffect(() => {
+    const timers = badgeTimersRef.current;
+    return () => {
+      for (const timer of timers.values()) clearTimeout(timer);
+    };
+  }, []);
+
+  const visibleCharges = invoice.lineItemCharges;
+
+  async function handleRoast() {
+    setRoastLoading(true);
+    setRoastError(null);
+
+    const eventBreakdown: Record<string, number> = {};
+    for (const ev of events) {
+      eventBreakdown[ev.eventType] = (eventBreakdown[ev.eventType] ?? 0) + ev.quantity;
     }
-    return true;
-  });
+
+    try {
+      const res = await fetch("/api/roast-plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          plan,
+          usageSummary: {
+            totalEvents: events.length,
+            uniqueCustomers: new Set(events.map((e) => e.customerId)).size,
+            eventBreakdown,
+            invoiceTotal: invoice.total,
+          },
+        }),
+      });
+
+      const data = (await res.json()) as { roast?: string; error?: string };
+      if (!res.ok || data.error) {
+        setRoastError(data.error ?? "Something went wrong.");
+      } else if (data.roast) {
+        setRoastText(data.roast);
+      }
+    } catch {
+      setRoastError("Couldn't reach the server — try again in a moment.");
+    } finally {
+      setRoastLoading(false);
+    }
+  }
 
   return (
     <section className="flex flex-col rounded-xl border border-border bg-white shadow-sm p-5 h-full overflow-y-auto">
@@ -121,7 +227,12 @@ export function LiveInvoice({
             key={charge.lineItemId}
             variants={tierCrossFlash}
             initial="idle"
-            animate={charge.crossedTierAt != null ? "flash" : "idle"}
+            animate={
+              charge.crossedTierAt != null &&
+              activeBadges.has(`${charge.lineItemId}-${charge.crossedTierAt}`)
+                ? "flash"
+                : "idle"
+            }
             className="rounded-lg px-2 -mx-2 py-1"
           >
             <div className="flex justify-between text-sm font-medium">
@@ -134,7 +245,8 @@ export function LiveInvoice({
             </p>
 
             <AnimatePresence>
-              {charge.crossedTierAt != null && (
+              {charge.crossedTierAt != null &&
+                activeBadges.has(`${charge.lineItemId}-${charge.crossedTierAt}`) && (
                 <motion.div
                   variants={tierBadgeVariants}
                   initial="hidden"
@@ -154,20 +266,14 @@ export function LiveInvoice({
             )}
 
             {charge.tierBreakdown && charge.tierBreakdown.length > 0 && (
-              <div className="mt-2 space-y-1 ml-3">
+              <div className="mt-2 space-y-1.5 ml-3 border-l-2 border-border pl-3">
                 {charge.tierBreakdown
                   .filter(shouldShowBreakdownRow)
                   .map((row) => (
-                    <div
-                      key={`${charge.lineItemId}-${row.tierLabel}`}
-                      className="flex items-center gap-2 text-xs text-muted"
-                    >
-                      <span className="shrink-0">{row.tierLabel}</span>
-                      <span className="font-mono">
-                        {row.units.toLocaleString()} × {formatCurrency(row.pricePerUnit)}
-                      </span>
-                      <span className="ml-auto font-mono">{formatCurrency(row.subtotal)}</span>
-                    </div>
+                    <BreakdownRow
+                      key={`${charge.lineItemId}-${row.tierLabel}-${row.units}-${row.subtotal}-${row.rowFormat ?? "x"}`}
+                      row={row}
+                    />
                   ))}
               </div>
             )}
@@ -193,19 +299,50 @@ export function LiveInvoice({
 
       <button
         className={`mt-5 w-full rounded-lg border border-dashed px-3 py-2 text-sm font-medium transition-colors ${
-          roastEnabled
+          roastEnabled && !roastLoading
             ? "border-warning/50 bg-warning/5 text-warning hover:bg-warning/10"
             : "border-border bg-gray-50 text-muted opacity-50 cursor-not-allowed"
         }`}
-        disabled={!roastEnabled}
+        disabled={!roastEnabled || roastLoading}
+        onClick={handleRoast}
       >
-        🔥 Roast my pricing
+        {roastLoading ? "Analyzing your pricing..." : "🔥 Roast my pricing"}
       </button>
-      {!roastEnabled && (
+      {!roastEnabled && !roastText && (
         <p className="text-xs text-muted text-center mt-1">
           Available after 15+ events with 2+ event types
         </p>
       )}
+
+      <AnimatePresence mode="wait">
+        {roastText && !roastLoading && (
+          <motion.div
+            key="roast"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.3 }}
+            className="mt-4 rounded-lg border border-warning/30 bg-warning/5 px-4 py-3"
+          >
+            <p className="text-sm italic text-foreground leading-relaxed">
+              &ldquo;{roastText}&rdquo;
+            </p>
+            <p className="mt-1.5 text-xs text-muted">— Claude, pricing critic</p>
+          </motion.div>
+        )}
+        {roastError && !roastLoading && (
+          <motion.div
+            key="roast-error"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.3 }}
+            className="mt-4 rounded-lg border border-border bg-gray-50 px-4 py-3"
+          >
+            <p className="text-sm text-muted">{roastError}</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </section>
   );
 }

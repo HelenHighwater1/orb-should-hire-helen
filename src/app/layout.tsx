@@ -17,6 +17,20 @@ export const metadata: Metadata = {
   title: "Orb Pricing Sandbox",
   description:
     "Watch a live invoice build in real time as usage events stream in. Change the pricing model and see how the same usage produces a completely different bill.",
+  openGraph: {
+    title: "Orb Pricing Sandbox",
+    description:
+      "An interactive demo of usage-based billing. Watch a live invoice build as events stream in, switch between 8 pricing models, and let Claude roast your pricing strategy.",
+    siteName: "Orb Pricing Sandbox",
+    type: "website",
+  },
+  twitter: {
+    card: "summary",
+    title: "Orb Pricing Sandbox",
+    description:
+      "An interactive demo of usage-based billing — 8 pricing models, live invoices, and AI-powered plan generation.",
+  },
+  metadataBase: new URL("https://orb-pricing-sandbox.vercel.app"),
 };
 
 export default function RootLayout({

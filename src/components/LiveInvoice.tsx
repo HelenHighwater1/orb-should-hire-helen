@@ -414,13 +414,13 @@ export function LiveInvoice({
         setFitScore(Math.max(0, Math.min(100, Math.round(data.fitScore))));
         setInsightError(null);
       } else {
-        setInsightError("Couldn't parse insights — try again.");
+        setInsightError("Couldn't parse insights - try again.");
         setInsightSummary(null);
         setFitScore(null);
       }
     } catch {
       if (id !== insightFetchIdRef.current) return;
-      setInsightError("Couldn't reach the server — try again in a moment.");
+      setInsightError("Couldn't reach the server - try again in a moment.");
       setInsightSummary(null);
       setFitScore(null);
     } finally {

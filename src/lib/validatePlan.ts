@@ -1,7 +1,7 @@
 import type { LineItem, Plan, PricingModel, Tier } from "@/types/billing";
 
 const FRIENDLY_GENERATION_ERROR =
-  "Couldn't generate a plan for that — try describing your product differently.";
+  "Couldn't generate a plan for that - try describing your product differently.";
 
 type ValidationSuccess = { plan: Plan; issues: string[] };
 type ValidationFailure = { error: string };

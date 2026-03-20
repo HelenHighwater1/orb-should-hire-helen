@@ -311,7 +311,7 @@ export function calculateInvoice(
               });
             } else {
               tierBreakdown.push({
-                tierLabel: "Beyond included credits — overage not offered",
+                tierLabel: "Beyond included credits - overage not offered",
                 units: overageUnits,
                 pricePerUnit: 0,
                 subtotal: 0,

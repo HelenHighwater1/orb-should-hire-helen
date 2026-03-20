@@ -114,7 +114,7 @@ export function PlanBuilder({
       if (!response.ok || !payload.plan) {
         setAiError(
           payload.error ??
-            "Couldn't generate a plan for that — try describing your product differently.",
+            "Couldn't generate a plan for that - try describing your product differently.",
         );
         return;
       }
@@ -124,7 +124,7 @@ export function PlanBuilder({
       setIsReasoningOpen(false);
       setActiveTab("manual");
     } catch {
-      setAiError("Couldn't generate a plan for that — try describing your product differently.");
+      setAiError("Couldn't generate a plan for that - try describing your product differently.");
     } finally {
       setIsGenerating(false);
     }

@@ -3,14 +3,14 @@ import { NextResponse } from "next/server";
 import type { Plan, UsageEvent } from "@/types/billing";
 
 /**
- * Default: Haiku 4.5 (fast). Older `claude-3-5-haiku-20241022` is often retired — requests
+ * Default: Haiku 4.5 (fast). Older `claude-3-5-haiku-20241022` is often retired - requests
  * then fail entirely. Override with ANTHROPIC_INSIGHTS_MODEL if needed.
  */
 const MODEL =
   process.env.ANTHROPIC_INSIGHTS_MODEL?.trim() || "claude-haiku-4-5";
 
 const FRIENDLY_ERROR =
-  "Couldn't generate an insight right now — try again in a moment.";
+  "Couldn't generate an insight right now - try again in a moment.";
 
 type RawEvent = {
   customerId?: string;
@@ -62,7 +62,7 @@ function unitsPerLineItemSummary(plan: Plan, customerId: string, events: UsageEv
   return lines.join("\n");
 }
 
-/** Smaller than full Plan JSON — same pricing signal, fewer input tokens = faster turnarounds */
+/** Smaller than full Plan JSON - same pricing signal, fewer input tokens = faster turnarounds */
 function compactPlanForInsights(plan: Plan): Record<string, unknown> {
   return {
     companyName: plan.companyName,
@@ -101,7 +101,7 @@ function buildPrompt(params: {
 
   return `Billing strategist: write ONE short paragraph (1 to 3 sentences total) about this vendor's pricing plan versus one customer's observed usage.
 
-The paragraph must briefly cover BOTH: (1) what is working well or aligned, if anything, and (2) what is weak, risky, or worth fixing, if anything. If one side is thin, say so in a compact way. Be specific to the numbers (tiers, totals, event mix, model type). Tone: smart, lightly witty, PG, constructive — never mean-spirited.
+The paragraph must briefly cover BOTH: (1) what is working well or aligned, if anything, and (2) what is weak, risky, or worth fixing, if anything. If one side is thin, say so in a compact way. Be specific to the numbers (tiers, totals, event mix, model type). Tone: smart, lightly witty, PG, constructive - never mean-spirited.
 
 Also assign fitScore: integer 0-100 = how well this plan aligns with the observed usage AND healthy usage-based pricing. Rough guide: 0-35 poor/misaligned, 36-64 mixed, 65-100 strong fit.
 

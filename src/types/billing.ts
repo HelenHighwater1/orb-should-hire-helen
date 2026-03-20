@@ -49,7 +49,7 @@ export type PricingModel =
       creditsPerUnit: number;
       /**
        * If defined, overage kicks in when the credit balance reaches zero and
-       * charges at this rate per unit. If undefined, overage is not offered —
+       * charges at this rate per unit. If undefined, overage is not offered -
        * show a "credits exhausted" warning with no additional charge.
        */
       overagePricePerUnit?: number;
@@ -62,7 +62,7 @@ export type PricingModel =
  * `upTo: 1000` means units 1–1000 fall in that tier; the next tier starts at 1001.
  * This applies to tiered, volume, stairstep, and any other model using Tier[].
  *
- * `flatFee` is used only by stairstep — the calculator ignores `pricePerUnit`
+ * `flatFee` is used only by stairstep - the calculator ignores `pricePerUnit`
  * for stairstep and reads only `flatFee` from the matched tier.
  */
 export type Tier = {
@@ -71,7 +71,7 @@ export type Tier = {
   flatFee?: number;
 };
 
-// ─── Invoice (Derived — never stored) ───────────────────────────────────────
+// ─── Invoice (Derived - never stored) ───────────────────────────────────────
 
 export type Invoice = {
   customerId: string;
@@ -91,7 +91,7 @@ export type LineItemCharge = {
   pricingModel: PricingModel;
   tierBreakdown?: TierBreakdown[];
   charge: number;
-  /** Previous charge amount — used to animate the delta on change */
+  /** Previous charge amount - used to animate the delta on change */
   previousCharge?: number;
   /** Unit count at which a tier boundary was crossed; triggers special UI */
   crossedTierAt?: number;
@@ -100,8 +100,8 @@ export type LineItemCharge = {
 /**
  * `rowFormat` controls invoice UI for rows that aren't a simple units × rate:
  * - multiplier (default): units × pricePerUnit = subtotal
- * - package: prepaid bundle — show label + subtotal only (no fake quantity × rate)
- * - included_usage: units drawn from prepaid balance — no $0 rate column
+ * - package: prepaid bundle - show label + subtotal only (no fake quantity × rate)
+ * - included_usage: units drawn from prepaid balance - no $0 rate column
  * - plain: notice-style row (e.g. unbilled overage when no overage rate)
  */
 export type TierBreakdownRowFormat = "multiplier" | "package" | "included_usage" | "plain";

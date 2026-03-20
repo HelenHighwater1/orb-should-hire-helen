@@ -28,7 +28,7 @@ export const metadata: Metadata = {
     card: "summary",
     title: "Orb Pricing Sandbox",
     description:
-      "An interactive demo of usage-based billing — 8 pricing models, live invoices, and AI-powered plan generation.",
+      "An interactive demo of usage-based billing - 8 pricing models, live invoices, and AI-powered plan generation.",
   },
   metadataBase: new URL("https://orb-pricing-sandbox.vercel.app"),
 };
